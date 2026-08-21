@@ -1,0 +1,11 @@
+export const APP_NAME = 'Climaps';
+export const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
+export const OPEN_METEO_GEOCODING_REVERSE_URL = 'https://geocoding-api.open-meteo.com/v1/reverse';
+export const HTTP_TIMEOUT_MS = 10_000;
+export const QUERY_STALE_TIME_MS = 10 * 60 * 1000;
+export const QUERY_GC_TIME_MS = 30 * 60 * 1000;
+export const QUERY_RETRY = 2;
+export const FORECAST_DAYS = 7;
+export const MAP_LATITUDE_DELTA = 0.08;
+export const MAP_LONGITUDE_DELTA = 0.08;
+export const OPEN_METEO_SITE_URL = 'https://open-meteo.com';

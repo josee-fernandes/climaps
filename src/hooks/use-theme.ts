@@ -1,14 +1,13 @@
-/**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
- */
+import { useContext } from 'react';
 
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ThemeContext, type ThemeContextValue } from '@/contexts/theme-context';
 
-export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
+export function useTheme(): ThemeContextValue {
+  const context = useContext(ThemeContext);
 
-  return Colors[theme];
+  if (!context) {
+    throw new Error('useTheme must be used within ThemeProvider');
+  }
+
+  return context;
 }
