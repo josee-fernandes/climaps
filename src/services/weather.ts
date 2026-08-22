@@ -1,15 +1,11 @@
-import {
-  FORECAST_DAYS,
-  OPEN_METEO_FORECAST_URL,
-  OPEN_METEO_GEOCODING_REVERSE_URL,
-} from '@/constants/config';
+import { FORECAST_DAYS, OPEN_METEO_FORECAST_URL } from '@/constants/config';
 import { httpClient } from '@/services/api';
-import type { OpenMeteoForecastResponse, OpenMeteoReverseResponse } from '@/@types/api.d';
+import { reverseGeocode } from '@/services/geocoding';
+import type { OpenMeteoForecastResponse } from '@/@types/api.d';
 import type {
   Coordinates,
   CurrentWeather,
   DailyForecastItem,
-  Place,
   SunCycle,
   WeatherSnapshot,
 } from '@/@types/weather';
@@ -73,38 +69,8 @@ export async function getForecast(coords: Coordinates): Promise<WeatherSnapshot>
   };
 }
 
-export async function getPlaceName(coords: Coordinates): Promise<Place | null> {
-  try {
-    const { data } = await httpClient.get<OpenMeteoReverseResponse>(
-      OPEN_METEO_GEOCODING_REVERSE_URL,
-      {
-        params: {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          language: 'pt',
-          count: 1,
-        },
-      },
-    );
-
-    const result = data.results?.[0];
-
-    if (!result) {
-      return null;
-    }
-
-    return {
-      name: result.name,
-      admin1: result.admin1 ?? null,
-      country: result.country ?? null,
-    };
-  } catch {
-    return null;
-  }
-}
-
 export async function getWeather(coords: Coordinates): Promise<WeatherSnapshot> {
-  const [forecast, place] = await Promise.all([getForecast(coords), getPlaceName(coords)]);
+  const [forecast, place] = await Promise.all([getForecast(coords), reverseGeocode(coords)]);
 
   return {
     ...forecast,

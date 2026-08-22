@@ -1,14 +1,7 @@
-import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { WebView } from 'react-native-webview';
 
-import {
-  buildMapHtml,
-  mapCommand,
-  parseMapMessage,
-  type MapTheme,
-} from '@/components/custom/map-html';
+import { buildMapHtml, parseMapMessage, type MapTheme } from '@/components/custom/map-html';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -26,8 +19,10 @@ type ClimapsMapViewProps = {
 
 type MapStatus = 'loading' | 'ready' | 'error';
 
-/** Local schemes used by the inline document; anything else is a link the user tapped. */
-const INTERNAL_URL_PATTERN = /^(about:|data:|file:|blob:)/;
+type MapBridge = {
+  applyTheme: (theme: MapTheme) => void;
+  setLocation: (coords: { latitude: number; longitude: number }) => void;
+};
 
 export function ClimapsMapView({
   latitude,
@@ -35,7 +30,7 @@ export function ClimapsMapView({
   markerLabel = 'Localização atual',
 }: ClimapsMapViewProps) {
   const { resolvedTheme, colors } = useTheme();
-  const webViewRef = useRef<WebView>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<MapStatus>('loading');
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -50,8 +45,6 @@ export function ClimapsMapView({
     [colors.background, colors.primary, colors.surface, colors.textSecondary, resolvedTheme],
   );
 
-  // The document is built once per reload so theme and location changes can be pushed into the
-  // live page instead of remounting it, which would drop the user's pan and zoom.
   const initialOptions = useRef({ latitude, longitude, markerLabel, mapTheme });
   const html = useMemo(
     () =>
@@ -65,21 +58,53 @@ export function ClimapsMapView({
     [reloadKey],
   );
 
+  // The srcDoc document inherits the parent origin, so the bridge is reachable directly.
+  const getBridge = useCallback((): MapBridge | null => {
+    const frameWindow = frameRef.current?.contentWindow as
+      | (Window & { climaps?: MapBridge })
+      | null
+      | undefined;
+
+    return frameWindow?.climaps ?? null;
+  }, []);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (typeof event.data !== 'string') {
+        return;
+      }
+
+      const message = parseMapMessage(event.data);
+
+      if (message?.type === 'ready') {
+        setStatus('ready');
+      }
+
+      if (message?.type === 'error') {
+        setStatus('error');
+      }
+    }
+
+    window.addEventListener('message', handleMessage);
+
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   useEffect(() => {
     if (status !== 'ready') {
       return;
     }
 
-    webViewRef.current?.injectJavaScript(mapCommand('applyTheme', mapTheme));
-  }, [mapTheme, status]);
+    getBridge()?.applyTheme(mapTheme);
+  }, [getBridge, mapTheme, status]);
 
   useEffect(() => {
     if (status !== 'ready') {
       return;
     }
 
-    webViewRef.current?.injectJavaScript(mapCommand('setLocation', { latitude, longitude }));
-  }, [latitude, longitude, status]);
+    getBridge()?.setLocation({ latitude, longitude });
+  }, [getBridge, latitude, longitude, status]);
 
   const retry = useCallback(() => {
     initialOptions.current = { latitude, longitude, markerLabel, mapTheme };
@@ -88,51 +113,30 @@ export function ClimapsMapView({
   }, [latitude, longitude, mapTheme, markerLabel]);
 
   if (status === 'error') {
-    return <MapErrorState onRetry={retry} />;
+    return (
+      <ThemedView style={styles.errorContainer}>
+        <ThemedText type="default" themeColor="textSecondary" style={styles.errorText}>
+          {MAP_ERROR_COPY}
+        </ThemedText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Tentar carregar o mapa novamente"
+          onPress={retry}
+          style={styles.retryButton}>
+          <ThemedText type="linkPrimary">Tentar novamente</ThemedText>
+        </Pressable>
+      </ThemedView>
+    );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <WebView
+      <iframe
         key={reloadKey}
-        ref={webViewRef}
-        style={styles.webView}
-        containerStyle={styles.webView}
-        source={{ html }}
-        originWhitelist={['*']}
-        javaScriptEnabled
-        domStorageEnabled
-        androidLayerType="hardware"
-        setSupportMultipleWindows={false}
-        allowsInlineMediaPlayback
-        scrollEnabled={false}
-        overScrollMode="never"
-        bounces={false}
-        showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={false}
-        accessibilityLabel="Mapa da localização atual"
-        onMessage={(event) => {
-          const message = parseMapMessage(event.nativeEvent.data);
-
-          if (message?.type === 'ready') {
-            setStatus('ready');
-          }
-
-          if (message?.type === 'error') {
-            setStatus('error');
-          }
-        }}
-        onError={() => setStatus('error')}
-        onHttpError={() => setStatus('error')}
-        onShouldStartLoadWithRequest={(request) => {
-          if (INTERNAL_URL_PATTERN.test(request.url)) {
-            return true;
-          }
-
-          void WebBrowser.openBrowserAsync(request.url);
-
-          return false;
-        }}
+        ref={frameRef}
+        title="Mapa da localização atual"
+        srcDoc={html}
+        style={iframeStyle}
       />
       {status === 'loading' ? (
         <ThemedView style={styles.overlay} pointerEvents="none">
@@ -145,30 +149,15 @@ export function ClimapsMapView({
   );
 }
 
-function MapErrorState({ onRetry }: { onRetry: () => void }) {
-  return (
-    <ThemedView style={styles.errorContainer}>
-      <ThemedText type="default" themeColor="textSecondary" style={styles.errorText}>
-        {MAP_ERROR_COPY}
-      </ThemedText>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Tentar carregar o mapa novamente"
-        onPress={onRetry}
-        style={styles.retryButton}>
-        <ThemedText type="linkPrimary">Tentar novamente</ThemedText>
-      </Pressable>
-    </ThemedView>
-  );
-}
+const iframeStyle = {
+  border: 'none',
+  width: '100%',
+  height: '100%',
+} as const;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  webView: {
-    flex: 1,
-    backgroundColor: 'transparent',
   },
   overlay: {
     position: 'absolute',

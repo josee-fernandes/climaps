@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useLocation } from '@/hooks/use-location';
 import { useWeather } from '@/hooks/use-weather';
+import { getPlaceLabel } from '@/utils/format-place';
 import { formatTemperature } from '@/utils/format-temperature';
 
 const LOCATION_ERROR_COPY = `Não foi possível acessar sua localização.
@@ -68,19 +69,31 @@ export default function MapScreen() {
     );
   }
 
+  const place = getPlaceLabel(data.place);
+
   return (
     <ThemedView style={styles.container}>
       <View style={styles.mapContainer}>
-        <ClimapsMapView latitude={coords.latitude} longitude={coords.longitude} />
+        <ClimapsMapView
+          latitude={coords.latitude}
+          longitude={coords.longitude}
+          markerLabel={place.title}
+        />
       </View>
       <ThemedView
         style={styles.panel}
         accessibilityRole="summary"
         accessibilityLabel="Informações do clima no mapa">
         <SafeAreaView edges={['bottom']} style={styles.panelContent}>
-          <ThemedText type="smallBold">
-            {data.place?.name ?? 'Sua região'}
-          </ThemedText>
+          <ThemedText type="smallBold">{place.title}</ThemedText>
+          {place.country ? (
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              accessibilityLabel={place.countryAccessibilityLabel ?? undefined}>
+              {place.country}
+            </ThemedText>
+          ) : null}
           <ThemedText type="default">
             {formatTemperature(data.current.temperatureC)} · {data.current.condition.label}
           </ThemedText>

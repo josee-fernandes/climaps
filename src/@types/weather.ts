@@ -32,9 +32,14 @@ export type DailyForecastItem = {
 };
 
 export type Place = {
-  name: string;
-  admin1: string | null;
-  country: string | null;
+  city: string;
+  /** Full state or province name, for example "São Paulo". */
+  state: string | null;
+  /** Short subdivision code, for example "SP". */
+  stateCode: string | null;
+  countryName: string | null;
+  /** ISO 3166-1 alpha-2 code, for example "BR". */
+  countryCode: string | null;
 };
 
 export type WeatherSnapshot = {

@@ -22,12 +22,16 @@ export type OpenMeteoForecastResponse = {
   daily: OpenMeteoDaily;
 };
 
-type OpenMeteoReverseResult = {
-  name: string;
-  admin1?: string;
-  country?: string;
-};
-
-export type OpenMeteoReverseResponse = {
-  results?: OpenMeteoReverseResult[];
+export type BigDataCloudReverseResponse = {
+  /** Smallest populated place, for example "São Paulo". */
+  locality?: string;
+  /** Broader locality, which can be a metropolitan area. */
+  city?: string;
+  /** State or province name, for example "São Paulo". */
+  principalSubdivision?: string;
+  /** ISO 3166-2 code, for example "BR-SP". */
+  principalSubdivisionCode?: string;
+  countryName?: string;
+  /** ISO 3166-1 alpha-2 code, for example "BR". */
+  countryCode?: string;
 };

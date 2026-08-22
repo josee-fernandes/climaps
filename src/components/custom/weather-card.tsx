@@ -6,6 +6,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { WeatherSnapshot } from '@/@types/weather';
 import { formatTimeInZone, formatWeekdayInZone } from '@/utils/format-date';
+import { getPlaceLabel } from '@/utils/format-place';
 import { formatTemperature } from '@/utils/format-temperature';
 import { getWeatherIcon } from '@/utils/weather-icon';
 
@@ -13,29 +14,11 @@ type WeatherCardProps = {
   snapshot: WeatherSnapshot;
 };
 
-function formatPlace(snapshot: WeatherSnapshot): string {
-  if (!snapshot.place) {
-    return 'Sua região';
-  }
-
-  return snapshot.place.name;
-}
-
-function formatPlaceSubtitle(snapshot: WeatherSnapshot): string | null {
-  if (!snapshot.place) {
-    return null;
-  }
-
-  const parts = [snapshot.place.admin1, snapshot.place.country].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(', ') : null;
-}
-
 export function WeatherCard({ snapshot }: WeatherCardProps) {
   const { colors } = useTheme();
   const { current, sun, daily, timezone } = snapshot;
   const ConditionIcon = getWeatherIcon(current.condition.weatherCode, current.condition.isDay);
-  const placeSubtitle = formatPlaceSubtitle(snapshot);
+  const place = getPlaceLabel(snapshot.place);
   const forecastItems = daily.slice(1, 6);
 
   return (
@@ -48,11 +31,14 @@ export function WeatherCard({ snapshot }: WeatherCardProps) {
         },
       ]}>
       <ThemedText type="subtitle" accessibilityRole="header">
-        {formatPlace(snapshot)}
+        {place.title}
       </ThemedText>
-      {placeSubtitle ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          {placeSubtitle}
+      {place.country ? (
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          accessibilityLabel={place.countryAccessibilityLabel ?? undefined}>
+          {place.country}
         </ThemedText>
       ) : null}
 
