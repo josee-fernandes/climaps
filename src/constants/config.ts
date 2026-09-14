@@ -11,9 +11,16 @@ export const MAP_ZOOM = 13;
 export const MAP_MIN_ZOOM = 3;
 export const MAP_MAX_ZOOM = 19;
 export const LEAFLET_VERSION = '1.9.4';
-export const MAP_TILE_URL_LIGHT =
-  'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-export const MAP_TILE_URL_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
+function cartoTileUrl(style: 'light_all' | 'dark_all') {
+  const key = process.env.EXPO_PUBLIC_CARTO_API_KEY;
+  const url = `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`;
+
+  return key ? `${url}?key=${key}` : url;
+}
+
+export const MAP_TILE_URL_LIGHT = cartoTileUrl('light_all');
+export const MAP_TILE_URL_DARK = cartoTileUrl('dark_all');
 export const MAP_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 /** Leaflet is loaded from a CDN, so the page reports back if it never became available. */
