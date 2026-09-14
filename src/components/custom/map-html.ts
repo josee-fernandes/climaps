@@ -9,10 +9,13 @@ import {
   MAP_TILE_URL_LIGHT,
   MAP_ZOOM,
 } from '@/constants/config';
+import { isValidCoordinates } from '@/services/location';
 
 export type MapTheme = {
   theme: ResolvedTheme;
   markerColor: string;
+  /** The picked location uses a contrasting color so it never reads as the user's position. */
+  selectedMarkerColor: string;
   backgroundColor: string;
   surfaceColor: string;
   textColor: string;
@@ -22,23 +25,73 @@ export type MapHtmlOptions = MapTheme & {
   latitude: number;
   longitude: number;
   markerLabel: string;
+  selectedLatitude?: number | null;
+  selectedLongitude?: number | null;
+  selectedLabel?: string;
 };
 
 /** Messages the page sends back through `window.ReactNativeWebView.postMessage`. */
-export type MapMessage = { type: 'ready' } | { type: 'error'; reason: string };
+export type MapMessage =
+  | { type: 'ready' }
+  | { type: 'error'; reason: string }
+  | { type: 'locationSelected'; latitude: number; longitude: number }
+  | { type: 'selectionCleared' };
+
+export type MapCommandMethod =
+  | 'applyTheme'
+  | 'setLocation'
+  | 'setSelection'
+  | 'clearSelection'
+  | 'recenterToUser';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
 export function parseMapMessage(raw: string): MapMessage | null {
   try {
-    const parsed = JSON.parse(raw) as MapMessage;
+    const parsed: unknown = JSON.parse(raw);
 
-    return parsed.type === 'ready' || parsed.type === 'error' ? parsed : null;
+    if (!isRecord(parsed) || typeof parsed.type !== 'string') {
+      return null;
+    }
+
+    if (parsed.type === 'ready') {
+      return { type: 'ready' };
+    }
+
+    if (parsed.type === 'error') {
+      return {
+        type: 'error',
+        reason: typeof parsed.reason === 'string' ? parsed.reason : 'unknown',
+      };
+    }
+
+    if (parsed.type === 'selectionCleared') {
+      return { type: 'selectionCleared' };
+    }
+
+    if (parsed.type === 'locationSelected') {
+      const coords = {
+        latitude: Number(parsed.latitude),
+        longitude: Number(parsed.longitude),
+      };
+
+      if (!isValidCoordinates(coords)) {
+        return null;
+      }
+
+      return { type: 'locationSelected', ...coords };
+    }
+
+    return null;
   } catch {
     return null;
   }
 }
 
 /** Serializes a call into the page's global bridge, ready for `injectJavaScript`. */
-export function mapCommand(method: 'applyTheme' | 'setLocation', payload: unknown): string {
+export function mapCommand(method: MapCommandMethod, payload: unknown = {}): string {
   return `window.climaps && window.climaps.${method}(${JSON.stringify(payload)}); true;`;
 }
 
@@ -47,6 +100,9 @@ export function buildMapHtml(options: MapHtmlOptions): string {
     latitude: options.latitude,
     longitude: options.longitude,
     markerLabel: options.markerLabel,
+    selectedLatitude: options.selectedLatitude ?? null,
+    selectedLongitude: options.selectedLongitude ?? null,
+    selectedLabel: options.selectedLabel ?? 'Local selecionado',
     zoom: MAP_ZOOM,
     minZoom: MAP_MIN_ZOOM,
     maxZoom: MAP_MAX_ZOOM,
@@ -55,6 +111,7 @@ export function buildMapHtml(options: MapHtmlOptions): string {
     theme: {
       theme: options.theme,
       markerColor: options.markerColor,
+      selectedMarkerColor: options.selectedMarkerColor,
       backgroundColor: options.backgroundColor,
       surfaceColor: options.surfaceColor,
       textColor: options.textColor,
@@ -81,6 +138,10 @@ export function buildMapHtml(options: MapHtmlOptions): string {
     position: absolute; inset: 0; border-radius: 50%;
     background: currentColor; border: 3px solid #fff;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+  .climaps-pin {
+    width: 28px; height: 38px; cursor: pointer;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
   }
   @keyframes climaps-pulse {
     0% { transform: scale(0.6); opacity: 0.35; }
@@ -134,6 +195,7 @@ export function buildMapHtml(options: MapHtmlOptions): string {
 
   var tileLayer = null;
   var marker = null;
+  var selectedMarker = null;
 
   function buildIcon(color) {
     return L.divIcon({
@@ -145,6 +207,20 @@ export function buildMapHtml(options: MapHtmlOptions): string {
         '<span class="climaps-marker__pulse"></span>' +
         '<span class="climaps-marker__dot"></span>' +
         '</div>',
+    });
+  }
+
+  function buildPinIcon(color) {
+    return L.divIcon({
+      className: '',
+      iconSize: [28, 38],
+      iconAnchor: [14, 38],
+      html:
+        '<svg class="climaps-pin" viewBox="0 0 28 38" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M14 1.5c-6.35 0-11.5 5.15-11.5 11.5 0 8.05 11.5 23.5 11.5 23.5s11.5-15.45 11.5-23.5c0-6.35-5.15-11.5-11.5-11.5z"' +
+        ' fill="' + color + '" stroke="#fff" stroke-width="2.5" />' +
+        '<circle cx="14" cy="13" r="4.5" fill="#fff" />' +
+        '</svg>',
     });
   }
 
@@ -174,6 +250,10 @@ export function buildMapHtml(options: MapHtmlOptions): string {
     if (marker) {
       marker.setIcon(buildIcon(next.markerColor));
     }
+
+    if (selectedMarker) {
+      selectedMarker.setIcon(buildPinIcon(next.selectedMarkerColor));
+    }
   }
 
   function setLocation(coords) {
@@ -186,10 +266,67 @@ export function buildMapHtml(options: MapHtmlOptions): string {
       marker.setLatLng(latLng);
     }
 
+    if (!selectedMarker) {
+      map.setView(latLng, Math.max(map.getZoom(), state.zoom), { animate: true });
+    }
+  }
+
+  function bindSelectedMarkerEvents(nextMarker) {
+    nextMarker.on('click', function (event) {
+      L.DomEvent.stop(event);
+      climapsPost({ type: 'selectionCleared' });
+    });
+  }
+
+  function setSelection(payload) {
+    var latitude = payload.latitude;
+    var longitude = payload.longitude;
+    var label = payload.label || 'Local selecionado';
+    var latLng = [latitude, longitude];
+
+    if (selectedMarker) {
+      selectedMarker.setLatLng(latLng);
+      selectedMarker.setIcon(buildPinIcon(state.theme.selectedMarkerColor));
+      selectedMarker.options.title = label;
+      selectedMarker.options.alt = label;
+    } else {
+      selectedMarker = L.marker(latLng, {
+        icon: buildPinIcon(state.theme.selectedMarkerColor),
+        keyboard: false,
+        alt: label,
+        title: label,
+      }).addTo(map);
+      bindSelectedMarkerEvents(selectedMarker);
+    }
+
     map.setView(latLng, Math.max(map.getZoom(), state.zoom), { animate: true });
   }
 
-  window.climaps = { applyTheme: applyTheme, setLocation: setLocation };
+  // Dropping the pin keeps the current viewport; recentering is an explicit user action.
+  function clearSelection() {
+    if (!selectedMarker) {
+      return;
+    }
+
+    map.removeLayer(selectedMarker);
+    selectedMarker = null;
+  }
+
+  function recenterToUser() {
+    if (!marker) {
+      return;
+    }
+
+    map.setView(marker.getLatLng(), Math.max(map.getZoom(), state.zoom), { animate: true });
+  }
+
+  window.climaps = {
+    applyTheme: applyTheme,
+    setLocation: setLocation,
+    setSelection: setSelection,
+    clearSelection: clearSelection,
+    recenterToUser: recenterToUser,
+  };
 
   applyTheme(state.theme);
 
@@ -199,6 +336,23 @@ export function buildMapHtml(options: MapHtmlOptions): string {
     alt: state.markerLabel,
     title: state.markerLabel,
   }).addTo(map);
+
+  map.on('contextmenu', function (event) {
+    L.DomEvent.preventDefault(event);
+    climapsPost({
+      type: 'locationSelected',
+      latitude: event.latlng.lat,
+      longitude: event.latlng.lng,
+    });
+  });
+
+  if (state.selectedLatitude != null && state.selectedLongitude != null) {
+    setSelection({
+      latitude: state.selectedLatitude,
+      longitude: state.selectedLongitude,
+      label: state.selectedLabel,
+    });
+  }
 
   tileLayer.on('load', function () {
     if (!CLIMAPS_READY) {

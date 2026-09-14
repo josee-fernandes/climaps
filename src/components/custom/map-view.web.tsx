@@ -1,3 +1,4 @@
+import { LocateFixed } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -15,6 +16,11 @@ type ClimapsMapViewProps = {
   latitude: number;
   longitude: number;
   markerLabel?: string;
+  selectedLatitude?: number | null;
+  selectedLongitude?: number | null;
+  selectedMarkerLabel?: string;
+  onLocationSelect?: (coords: { latitude: number; longitude: number }) => void;
+  onSelectionClear?: () => void;
 };
 
 type MapStatus = 'loading' | 'ready' | 'error';
@@ -22,12 +28,42 @@ type MapStatus = 'loading' | 'ready' | 'error';
 type MapBridge = {
   applyTheme: (theme: MapTheme) => void;
   setLocation: (coords: { latitude: number; longitude: number }) => void;
+  setSelection: (coords: { latitude: number; longitude: number; label?: string }) => void;
+  clearSelection: () => void;
+  recenterToUser: () => void;
 };
+
+type MapViewOptions = {
+  latitude: number;
+  longitude: number;
+  markerLabel: string;
+  selectedLatitude: number | null;
+  selectedLongitude: number | null;
+  selectedLabel: string;
+  mapTheme: MapTheme;
+};
+
+function hasSelection(
+  latitude?: number | null,
+  longitude?: number | null,
+): latitude is number {
+  return (
+    latitude != null &&
+    longitude != null &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude)
+  );
+}
 
 export function ClimapsMapView({
   latitude,
   longitude,
   markerLabel = 'Localização atual',
+  selectedLatitude = null,
+  selectedLongitude = null,
+  selectedMarkerLabel = 'Local selecionado',
+  onLocationSelect,
+  onSelectionClear,
 }: ClimapsMapViewProps) {
   const { resolvedTheme, colors } = useTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -38,20 +74,39 @@ export function ClimapsMapView({
     () => ({
       theme: resolvedTheme,
       markerColor: colors.primary,
+      selectedMarkerColor: colors.error,
       backgroundColor: colors.background,
       surfaceColor: colors.surface,
       textColor: colors.textSecondary,
     }),
-    [colors.background, colors.primary, colors.surface, colors.textSecondary, resolvedTheme],
+    [
+      colors.background,
+      colors.error,
+      colors.primary,
+      colors.surface,
+      colors.textSecondary,
+      resolvedTheme,
+    ],
   );
 
-  const initialOptions = useRef({ latitude, longitude, markerLabel, mapTheme });
+  const initialOptions = useRef<MapViewOptions>({
+    latitude,
+    longitude,
+    markerLabel,
+    selectedLatitude,
+    selectedLongitude,
+    selectedLabel: selectedMarkerLabel,
+    mapTheme,
+  });
   const html = useMemo(
     () =>
       buildMapHtml({
         latitude: initialOptions.current.latitude,
         longitude: initialOptions.current.longitude,
         markerLabel: initialOptions.current.markerLabel,
+        selectedLatitude: initialOptions.current.selectedLatitude,
+        selectedLongitude: initialOptions.current.selectedLongitude,
+        selectedLabel: initialOptions.current.selectedLabel,
         ...initialOptions.current.mapTheme,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,12 +138,23 @@ export function ClimapsMapView({
       if (message?.type === 'error') {
         setStatus('error');
       }
+
+      if (message?.type === 'locationSelected') {
+        onLocationSelect?.({
+          latitude: message.latitude,
+          longitude: message.longitude,
+        });
+      }
+
+      if (message?.type === 'selectionCleared') {
+        onSelectionClear?.();
+      }
     }
 
     window.addEventListener('message', handleMessage);
 
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [onLocationSelect, onSelectionClear]);
 
   useEffect(() => {
     if (status !== 'ready') {
@@ -106,11 +172,48 @@ export function ClimapsMapView({
     getBridge()?.setLocation({ latitude, longitude });
   }, [getBridge, latitude, longitude, status]);
 
+  useEffect(() => {
+    if (status !== 'ready') {
+      return;
+    }
+
+    if (hasSelection(selectedLatitude, selectedLongitude) && selectedLongitude != null) {
+      getBridge()?.setSelection({
+        latitude: selectedLatitude,
+        longitude: selectedLongitude,
+        label: selectedMarkerLabel,
+      });
+      return;
+    }
+
+    getBridge()?.clearSelection();
+  }, [getBridge, selectedLatitude, selectedLongitude, selectedMarkerLabel, status]);
+
+  const recenterToUser = useCallback(() => {
+    getBridge()?.recenterToUser();
+  }, [getBridge]);
+
   const retry = useCallback(() => {
-    initialOptions.current = { latitude, longitude, markerLabel, mapTheme };
+    initialOptions.current = {
+      latitude,
+      longitude,
+      markerLabel,
+      selectedLatitude,
+      selectedLongitude,
+      selectedLabel: selectedMarkerLabel,
+      mapTheme,
+    };
     setStatus('loading');
     setReloadKey((current) => current + 1);
-  }, [latitude, longitude, mapTheme, markerLabel]);
+  }, [
+    latitude,
+    longitude,
+    mapTheme,
+    markerLabel,
+    selectedLatitude,
+    selectedLongitude,
+    selectedMarkerLabel,
+  ]);
 
   if (status === 'error') {
     return (
@@ -138,6 +241,19 @@ export function ClimapsMapView({
         srcDoc={html}
         style={iframeStyle}
       />
+      {status === 'ready' && !hasSelection(selectedLatitude, selectedLongitude) ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Centralizar o mapa na minha localização"
+          onPress={recenterToUser}
+          style={({ pressed }) => [
+            styles.recenterButton,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            pressed && styles.recenterButtonPressed,
+          ]}>
+          <LocateFixed size={22} color={colors.primary} />
+        </Pressable>
+      ) : null}
       {status === 'loading' ? (
         <ThemedView style={styles.overlay} pointerEvents="none">
           <ThemedText type="small" themeColor="textSecondary">
@@ -182,5 +298,19 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
     minHeight: 44,
     justifyContent: 'center',
+  },
+  recenterButton: {
+    position: 'absolute',
+    right: Spacing.three,
+    bottom: Spacing.three,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recenterButtonPressed: {
+    opacity: 0.7,
   },
 });

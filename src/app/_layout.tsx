@@ -15,6 +15,7 @@ import {
   QUERY_RETRY,
   QUERY_STALE_TIME_MS,
 } from '@/constants/config';
+import { MapSelectionProvider } from '@/contexts/map-selection-context';
 import { ThemeProvider } from '@/contexts/theme-context';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -68,9 +69,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider>
-            <RootLayoutInner />
-          </ThemeProvider>
+          <MapSelectionProvider>
+            <ThemeProvider>
+              <RootLayoutInner />
+            </ThemeProvider>
+          </MapSelectionProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

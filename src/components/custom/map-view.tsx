@@ -1,4 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
+import { LocateFixed } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -22,17 +23,49 @@ type ClimapsMapViewProps = {
   latitude: number;
   longitude: number;
   markerLabel?: string;
+  selectedLatitude?: number | null;
+  selectedLongitude?: number | null;
+  selectedMarkerLabel?: string;
+  onLocationSelect?: (coords: { latitude: number; longitude: number }) => void;
+  onSelectionClear?: () => void;
 };
 
 type MapStatus = 'loading' | 'ready' | 'error';
 
+type MapViewOptions = {
+  latitude: number;
+  longitude: number;
+  markerLabel: string;
+  selectedLatitude: number | null;
+  selectedLongitude: number | null;
+  selectedLabel: string;
+  mapTheme: MapTheme;
+};
+
 /** Local schemes used by the inline document; anything else is a link the user tapped. */
 const INTERNAL_URL_PATTERN = /^(about:|data:|file:|blob:)/;
+
+function hasSelection(
+  latitude?: number | null,
+  longitude?: number | null,
+): latitude is number {
+  return (
+    latitude != null &&
+    longitude != null &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude)
+  );
+}
 
 export function ClimapsMapView({
   latitude,
   longitude,
   markerLabel = 'Localização atual',
+  selectedLatitude = null,
+  selectedLongitude = null,
+  selectedMarkerLabel = 'Local selecionado',
+  onLocationSelect,
+  onSelectionClear,
 }: ClimapsMapViewProps) {
   const { resolvedTheme, colors } = useTheme();
   const webViewRef = useRef<WebView>(null);
@@ -43,22 +76,41 @@ export function ClimapsMapView({
     () => ({
       theme: resolvedTheme,
       markerColor: colors.primary,
+      selectedMarkerColor: colors.error,
       backgroundColor: colors.background,
       surfaceColor: colors.surface,
       textColor: colors.textSecondary,
     }),
-    [colors.background, colors.primary, colors.surface, colors.textSecondary, resolvedTheme],
+    [
+      colors.background,
+      colors.error,
+      colors.primary,
+      colors.surface,
+      colors.textSecondary,
+      resolvedTheme,
+    ],
   );
 
   // The document is built once per reload so theme and location changes can be pushed into the
   // live page instead of remounting it, which would drop the user's pan and zoom.
-  const initialOptions = useRef({ latitude, longitude, markerLabel, mapTheme });
+  const initialOptions = useRef<MapViewOptions>({
+    latitude,
+    longitude,
+    markerLabel,
+    selectedLatitude,
+    selectedLongitude,
+    selectedLabel: selectedMarkerLabel,
+    mapTheme,
+  });
   const html = useMemo(
     () =>
       buildMapHtml({
         latitude: initialOptions.current.latitude,
         longitude: initialOptions.current.longitude,
         markerLabel: initialOptions.current.markerLabel,
+        selectedLatitude: initialOptions.current.selectedLatitude,
+        selectedLongitude: initialOptions.current.selectedLongitude,
+        selectedLabel: initialOptions.current.selectedLabel,
         ...initialOptions.current.mapTheme,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,11 +133,50 @@ export function ClimapsMapView({
     webViewRef.current?.injectJavaScript(mapCommand('setLocation', { latitude, longitude }));
   }, [latitude, longitude, status]);
 
+  useEffect(() => {
+    if (status !== 'ready') {
+      return;
+    }
+
+    if (hasSelection(selectedLatitude, selectedLongitude) && selectedLongitude != null) {
+      webViewRef.current?.injectJavaScript(
+        mapCommand('setSelection', {
+          latitude: selectedLatitude,
+          longitude: selectedLongitude,
+          label: selectedMarkerLabel,
+        }),
+      );
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(mapCommand('clearSelection'));
+  }, [selectedLatitude, selectedLongitude, selectedMarkerLabel, status]);
+
+  const recenterToUser = useCallback(() => {
+    webViewRef.current?.injectJavaScript(mapCommand('recenterToUser'));
+  }, []);
+
   const retry = useCallback(() => {
-    initialOptions.current = { latitude, longitude, markerLabel, mapTheme };
+    initialOptions.current = {
+      latitude,
+      longitude,
+      markerLabel,
+      selectedLatitude,
+      selectedLongitude,
+      selectedLabel: selectedMarkerLabel,
+      mapTheme,
+    };
     setStatus('loading');
     setReloadKey((current) => current + 1);
-  }, [latitude, longitude, mapTheme, markerLabel]);
+  }, [
+    latitude,
+    longitude,
+    mapTheme,
+    markerLabel,
+    selectedLatitude,
+    selectedLongitude,
+    selectedMarkerLabel,
+  ]);
 
   if (status === 'error') {
     return <MapErrorState onRetry={retry} />;
@@ -121,6 +212,17 @@ export function ClimapsMapView({
           if (message?.type === 'error') {
             setStatus('error');
           }
+
+          if (message?.type === 'locationSelected') {
+            onLocationSelect?.({
+              latitude: message.latitude,
+              longitude: message.longitude,
+            });
+          }
+
+          if (message?.type === 'selectionCleared') {
+            onSelectionClear?.();
+          }
         }}
         onError={() => setStatus('error')}
         onHttpError={() => setStatus('error')}
@@ -134,6 +236,9 @@ export function ClimapsMapView({
           return false;
         }}
       />
+      {status === 'ready' && !hasSelection(selectedLatitude, selectedLongitude) ? (
+        <RecenterButton onPress={recenterToUser} />
+      ) : null}
       {status === 'loading' ? (
         <ThemedView style={styles.overlay} pointerEvents="none">
           <ThemedText type="small" themeColor="textSecondary">
@@ -142,6 +247,24 @@ export function ClimapsMapView({
         </ThemedView>
       ) : null}
     </View>
+  );
+}
+
+function RecenterButton({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Centralizar o mapa na minha localização"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.recenterButton,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        pressed && styles.recenterButtonPressed,
+      ]}>
+      <LocateFixed size={22} color={colors.primary} />
+    </Pressable>
   );
 }
 
@@ -193,5 +316,19 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
     minHeight: 44,
     justifyContent: 'center',
+  },
+  recenterButton: {
+    position: 'absolute',
+    right: Spacing.three,
+    bottom: Spacing.three,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recenterButtonPressed: {
+    opacity: 0.7,
   },
 });

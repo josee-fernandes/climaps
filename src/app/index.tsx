@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -22,7 +21,6 @@ const WEATHER_ERROR_COPY = `Não foi possível carregar o clima.
 Verifique sua conexão e tente novamente.`;
 
 export default function HomeScreen() {
-  const router = useRouter();
   const { coords, status, isLoading: isLocationLoading, requestPermission } = useLocation();
   const {
     data,
@@ -77,13 +75,6 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <WeatherCard snapshot={data} />
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel="Ver no mapa"
-            onPress={() => router.push('/map')}
-            style={styles.mapLink}>
-            <ThemedText type="linkPrimary">Ver no mapa</ThemedText>
-          </Pressable>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -131,10 +122,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: Spacing.three,
     paddingBottom: Spacing.six,
-  },
-  mapLink: {
-    minHeight: 44,
-    justifyContent: 'center',
   },
   errorText: {
     lineHeight: 24,
