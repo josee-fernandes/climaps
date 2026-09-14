@@ -19,7 +19,7 @@ export const Colors = {
     surface: '#FFFFFF',
     text: '#1A2332',
     textSecondary: '#5C6678',
-    primary: '#2563EB',
+    primary: '#204FFF',
     border: '#D5DEEB',
     error: '#B42318',
     success: '#2F6F4E',

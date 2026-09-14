@@ -1,21 +1,18 @@
-import { StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import { StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
+const BRAND_BLUE = '#204FFF';
 
 export function Splash() {
-  const { colors } = useTheme();
-
   return (
-    <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ThemedText type="title" accessibilityRole="header">
-        CLIMAPS
-      </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        Carregando...
-      </ThemedText>
-    </ThemedView>
+    <View style={styles.container}>
+      <Image
+        source={require('../../../assets/images/climaps-horizontal.png')}
+        style={styles.logo}
+        contentFit="contain"
+        accessibilityLabel="Climaps"
+      />
+    </View>
   );
 }
 
@@ -24,6 +21,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    backgroundColor: BRAND_BLUE,
+  },
+  logo: {
+    width: 280,
+    height: 140,
   },
 });

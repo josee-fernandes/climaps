@@ -1,25 +1,28 @@
 {
   "expo": {
-    "name": "climaps",
+    "name": "Climaps",
     "slug": "climaps",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/climaps-icon.png",
     "scheme": "climaps",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#204FFF",
+    "primaryColor": "#204FFF",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/climaps-icon.png",
+      "backgroundColor": "#204FFF",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Usamos sua localização apenas para descobrir onde você está e consultar o clima dessa região."
       }
     },
     "android": {
       "package": "com.joseefernandes.climaps",
+      "icon": "./assets/images/climaps-icon.png",
+      "backgroundColor": "#204FFF",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#204FFF",
+        "foregroundImage": "./assets/images/climaps-icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -31,7 +34,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/climaps-icon.png"
     },
     "plugins": [
       "expo-router",
@@ -39,13 +42,28 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#204FFF",
+          "image": "./assets/images/climaps-horizontal.png",
+          "imageWidth": 280,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#204FFF",
+            "image": "./assets/images/climaps-horizontal.png"
+          }
         }
       ],
       "expo-status-bar",
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/ReadexPro_400Regular.ttf",
+            "./assets/fonts/ReadexPro_500Medium.ttf",
+            "./assets/fonts/ReadexPro_600SemiBold.ttf",
+            "./assets/fonts/ReadexPro_700Bold.ttf"
+          ]
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {

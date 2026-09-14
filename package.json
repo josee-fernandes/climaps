@@ -2,6 +2,7 @@
   "name": "climaps",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "packageManager": "pnpm@12.3.3",
   "dependencies": {
     "@expo/ui": "~57.0.12",
     "@hookform/resolvers": "^5.9.1",
@@ -52,7 +53,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit"
   },
   "private": true
 }

@@ -81,7 +81,10 @@ export function WeatherCard({ snapshot }: WeatherCardProps) {
                 color={colors.primary}
                 accessibilityLabel="Condição prevista"
               />
-              <ThemedText type="small">
+              <ThemedText
+                type="small"
+                style={styles.forecastTemperature}
+                accessibilityLabel={`Máxima de ${formatTemperature(item.temperatureMaxC)} e mínima de ${formatTemperature(item.temperatureMinC)}`}>
                 {formatTemperature(item.temperatureMaxC)} / {formatTemperature(item.temperatureMinC)}
               </ThemedText>
             </View>
@@ -142,11 +145,15 @@ const styles = StyleSheet.create({
   forecastItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: Spacing.two,
   },
   forecastDay: {
-    width: 56,
+    flex: 1,
     textTransform: 'capitalize',
+  },
+  forecastTemperature: {
+    flexShrink: 0,
+    minWidth: 100,
+    textAlign: 'right',
   },
 });

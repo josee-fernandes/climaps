@@ -7,26 +7,37 @@ export const THEMES = ['system', 'light', 'dark'] as const;
 
 export type ThemeColor = keyof ColorTokens;
 
+export const ReadexPro = {
+  regular: 'ReadexPro_400Regular',
+  medium: 'ReadexPro_500Medium',
+  semibold: 'ReadexPro_600SemiBold',
+  bold: 'ReadexPro_700Bold',
+} as const;
+
 export const Fonts = Platform.select({
   ios: {
-    sans: 'system-ui',
+    sans: ReadexPro.regular,
     serif: 'ui-serif',
     rounded: 'ui-rounded',
     mono: 'ui-monospace',
   },
   default: {
-    sans: 'normal',
+    sans: ReadexPro.regular,
     serif: 'serif',
     rounded: 'normal',
     mono: 'monospace',
   },
   web: {
-    sans: 'var(--font-display)',
+    sans: 'var(--font-sans)',
     serif: 'var(--font-serif)',
     rounded: 'var(--font-rounded)',
     mono: 'var(--font-mono)',
   },
 });
+
+export function sansFontFamily(weight: keyof typeof ReadexPro = 'regular') {
+  return ReadexPro[weight];
+}
 
 export const Spacing = {
   half: 2,

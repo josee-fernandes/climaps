@@ -1,5 +1,6 @@
 import '@/global.css';
 import { DarkTheme, DefaultTheme, ThemeProvider as RouterThemeProvider } from 'expo-router';
+import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -34,10 +35,17 @@ const queryClient = new QueryClient({
 });
 
 function RootLayoutInner() {
-  const { resolvedTheme, isReady, colors } = useTheme();
+  const { resolvedTheme, isReady } = useTheme();
+  const [fontsLoaded, fontError] = useFonts({
+    ReadexPro_400Regular: require('../../assets/fonts/ReadexPro_400Regular.ttf'),
+    ReadexPro_500Medium: require('../../assets/fonts/ReadexPro_500Medium.ttf'),
+    ReadexPro_600SemiBold: require('../../assets/fonts/ReadexPro_600SemiBold.ttf'),
+    ReadexPro_700Bold: require('../../assets/fonts/ReadexPro_700Bold.ttf'),
+  });
+  const isAppReady = isReady && (fontsLoaded || Boolean(fontError));
 
   useEffect(() => {
-    if (!isReady) {
+    if (!isAppReady) {
       return;
     }
 
@@ -50,9 +58,9 @@ function RootLayoutInner() {
     }
 
     void hideSplash();
-  }, [isReady]);
+  }, [isAppReady]);
 
-  if (!isReady) {
+  if (!isAppReady) {
     return <Splash />;
   }
 
